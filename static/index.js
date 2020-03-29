@@ -23,8 +23,9 @@
         document.getElementById("my-id").innerHTML = resp.Id;
         updatePointsList(resp.Points);
 
-        startWebsocket(resp.Id);
+        var ws = startWebsocket(resp.Id);
         document.getElementById("increase-score").addEventListener('click', increaseScore(resp.Id));
+        window.addEventListener('beforeunload', closeWebsocket(ws, resp.Id));
       } else {
         alert("There was a problem with the request.");
       }
@@ -52,13 +53,38 @@
   }
 
   function startWebsocket(ws_id) {
-    var ws = new WebSocket("ws://localhost:8888/websocket?id="+ws_id);
+    ws = new WebSocket("ws://localhost:8888/websocket?id="+ws_id);
     
     ws.onmessage = function(evt) {
       var resp = JSON.parse(evt.data);
       document.getElementById("my-id").innerHTML = resp.Id;
       updatePointsList(resp.Points);
     };
+
+    return ws;
+  }
+
+  function closeWebsocket(ws, req_id) {
+    return function(evt) {
+      evt.preventDefault();
+
+      httpRequest = new XMLHttpRequest();
+      httpRequest.onreadystatechange = handleCloseWebsocketResponse;
+      httpRequest.open('GET', 'remove_participant?id='+req_id);
+      httpRequest.send();
+
+      evt.returnValue = '';
+    };
+  }
+
+  function handleCloseWebsocketResponse() {
+    if (httpRequest.readyState === XMLHttpRequest.DONE) {
+      if (httpRequest.status === 200) {
+        window.close();
+      } else {
+        console.log("There was a problem with the request.");
+      }
+    }
   }
 
   function updatePointsList(pts) {

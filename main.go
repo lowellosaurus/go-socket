@@ -35,11 +35,13 @@ func (s *state) addParticipant() string {
 }
 
 func (s *state) addConnection(id string, conn *websocket.Conn) {
-	fmt.Printf("Adding connection for '%s'\n", id)
+	// fmt.Printf("Adding connection for '%s'\n", id)
 	s.connections[id] = conn
 }
 
 func (s *state) removeParticipant(id string) {
+	// fmt.Printf("Removing connection for '%s'\n", id)
+
 	delete(s.connections, id)
 	delete(s.points, id)
 }
@@ -61,7 +63,7 @@ func (s *state) serialize(id string) stateOut {
 }
 
 func (s *state) sendStateToConnections() error {
-	fmt.Printf("Sending state update to %d connections\n", len(s.connections))
+	// fmt.Printf("Sending state update to %d connections\n", len(s.connections))
 
 	for id, conn := range s.connections {
 		out := s.serialize(id)
@@ -97,6 +99,7 @@ func main() {
 	// Serve SPA assets.
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	http.HandleFunc("/add_participant", addParticipantHandler(s))
+	http.HandleFunc("/remove_participant", removeParticipantHandler(s))
 	http.HandleFunc("/increment_score", incrementScoreHandler(s))
 	http.HandleFunc("/websocket", websocketHandler(s))
 
@@ -108,6 +111,22 @@ func addParticipantHandler(s *state) func(http.ResponseWriter, *http.Request) {
 		id := s.addParticipant()
 		out := s.serialize(id)
 
+		bytes, err := json.Marshal(out)
+		if err != nil {
+			respondWithError(w, fmt.Sprintf("Can't serialize %#v", out))
+		}
+
+		io.WriteString(w, string(bytes))
+		s.sendStateToConnections()
+	}
+}
+
+func removeParticipantHandler(s *state) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		id := req.URL.Query().Get("id")
+		s.removeParticipant(id)
+
+		out := s.serialize(id)
 		bytes, err := json.Marshal(out)
 		if err != nil {
 			respondWithError(w, fmt.Sprintf("Can't serialize %#v", out))
